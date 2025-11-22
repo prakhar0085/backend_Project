@@ -1,0 +1,95 @@
+Detailed Component Breakdown
+1. Request Flow Sequence
+text
+Client Request → Express Server → Auth Middleware → Route Handler → 
+Database Operation → Cloudinary (if file upload) → Response to Client
+2. Authentication Flow Details
+text
+Signup:
+1. Client sends form data + logo file
+2. Server: bcrypt.hash(password)
+3. Cloudinary: Upload logo → returns logoUrl, logoId
+4. MongoDB: Create user document
+5. Return success response
+
+Login:
+1. Client sends email/password
+2. MongoDB: Find user by email
+3. Server: bcrypt.compare(password, hash)
+4. Generate JWT token with user payload
+5. Return token + user data
+3. Video Upload Flow
+text
+1. Auth middleware validates JWT
+2. Multer processes multipart form (video + thumbnail)
+3. Cloudinary: Upload video (resource_type: 'video')
+4. Cloudinary: Upload thumbnail
+5. MongoDB: Create video document with:
+   - videoUrl, thumbnailUrl from Cloudinary
+   - user_id from authenticated user
+   - Metadata (title, description, tags, category)
+4. Social Interaction Logic
+javascript
+// Like/Dislike Logic
+if (user likes video) {
+  add user_id to video.likedBy
+  remove user_id from video.disLikedBy
+}
+
+// View Tracking
+if (user not in video.viewedBy) {
+  add user_id to video.viewedBy
+}
+
+// Subscription System
+subscriber: add channelId to subscribedChannels[]
+channelOwner: increment subscribers count
+5. Virtual Field Computation
+javascript
+// Video Model Virtuals
+videoSchema.virtual('likes').get(function() {
+  return this.likedBy.length;
+});
+
+videoSchema.virtual('views').get(function() {
+  return this.viewedBy.length;
+});
+6. File Management System
+text
+Upload Process:
+- Temporary file storage → Cloudinary upload → Store URLs in DB → Clean temp files
+
+Cleanup Process:
+- On video deletion: Cloudinary delete video + thumbnail
+- On logo update: Delete old logo from Cloudinary
+7. API Response Patterns
+javascript
+Success: {
+  success: true,
+  message: "Operation successful",
+  data: { ...entityData }
+}
+
+Error: {
+  success: false,
+  message: "Error description",
+  error: errorDetails
+}
+8. Security Layers
+text
+1. JWT Authentication - Protected routes
+2. Ownership Validation - Users can only modify their own content
+3. Password Hashing - bcrypt with salt rounds
+4. File Type Validation - Check MIME types on upload
+5. Input Sanitization - Mongoose validation
+This architecture ensures:
+
+Scalability: Modular routes and models
+
+Security: JWT auth and ownership checks
+
+Performance: Virtual fields for computed data
+
+Reliability: Error handling and file cleanup
+
+Maintainability: Clear separation of concerns
